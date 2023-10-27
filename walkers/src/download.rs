@@ -2,7 +2,7 @@ use egui::Context;
 use futures::StreamExt;
 use reqwest::header::USER_AGENT;
 
-use crate::{mercator::TileId, providers::TileSource, tiles::Tile};
+use crate::{mercator::TileId, providers::Provider, tiles::Tile};
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
@@ -34,15 +34,12 @@ async fn download_and_decode(client: &reqwest::Client, url: &str) -> Result<Tile
     Tile::from_image_bytes(&image).map_err(Error::Image)
 }
 
-async fn download_continuously_impl<S>(
-    source: S,
+async fn download_continuously_impl(
+    source: Provider,
     mut request_rx: futures::channel::mpsc::Receiver<TileId>,
     mut tile_tx: futures::channel::mpsc::Sender<(TileId, Tile)>,
     egui_ctx: Context,
-) -> Result<(), ()>
-where
-    S: TileSource + Send + 'static,
-{
+) -> Result<(), ()> {
     // Keep outside the loop to reuse it as much as possible.
     let client = reqwest::Client::new();
 
@@ -65,14 +62,12 @@ where
 }
 
 /// Continuously download tiles requested via request channel.
-pub async fn download_continuously<S>(
-    source: S,
+pub async fn download_continuously(
+    source: Provider,
     request_rx: futures::channel::mpsc::Receiver<TileId>,
     tile_tx: futures::channel::mpsc::Sender<(TileId, Tile)>,
     egui_ctx: Context,
-) where
-    S: TileSource + Send + 'static,
-{
+) {
     if download_continuously_impl(source, request_rx, tile_tx, egui_ctx)
         .await
         .is_err()

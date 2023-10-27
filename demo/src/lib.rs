@@ -1,20 +1,19 @@
 use egui::{Align2, Context, Painter, Shape};
 use walkers::{
     extras::{Image, Images, Place, Places, Style, Texture},
-    providers::MapType,
+    providers::{self, MapType, Providers},
     Map, MapMemory, Plugin, Projector, Tiles,
 };
 
 pub struct MyApp {
     tiles: Tiles,
-    geoportal_tiles: Tiles,
     map_memory: MapMemory,
-    satellite: bool,
     texture: Texture,
     rotate: f32,
     x_scale: f32,
     y_scale: f32,
     map_type: MapType,
+    provider_type: Providers,
 }
 
 impl MyApp {
@@ -26,19 +25,18 @@ impl MyApp {
         );
 
         let map_type = MapType::Hybrid;
-        let provider = walkers::providers::Google::new(map_type);
+        let provider_type = Providers::OpenStreetMap;
+        let provider = providers::new(provider_type, map_type);
 
         Self {
             tiles: Tiles::new(provider, egui_ctx.to_owned()),
-            // tiles: Tiles::new(walkers::providers::OpenStreetMap, egui_ctx.to_owned()),
-            geoportal_tiles: Tiles::new(walkers::providers::Geoportal, egui_ctx),
             map_memory: MapMemory::default(),
-            satellite: false,
             texture: texture,
             rotate: 0.0,
             x_scale: 1.0,
             y_scale: 1.0,
             map_type: map_type,
+            provider_type: provider_type,
         }
     }
 }
@@ -56,13 +54,7 @@ impl eframe::App for MyApp {
                 // Typically this would be a GPS acquired position which is tracked by the map.
                 let my_position = places::wroclaw_glowny();
 
-                // Select either OSM standard map or satellite.
-                let tiles = if self.satellite {
-                    &mut self.geoportal_tiles
-                } else {
-                    &mut self.tiles
-                };
-
+                let tiles = &mut self.tiles;
                 let attribution = tiles.attribution();
 
                 // In egui, widgets are constructed and consumed in each frame.
@@ -99,12 +91,12 @@ impl eframe::App for MyApp {
                     go_to_my_position(ui, &mut self.map_memory);
                     controls(
                         ui,
-                        &mut self.satellite,
                         &mut self.texture,
                         &mut self.rotate,
                         &mut self.x_scale,
                         &mut self.y_scale,
                         &mut self.map_type,
+                        &mut self.provider_type,
                         &mut self.tiles,
                     );
                     acknowledge(ui, &attribution);
@@ -177,9 +169,8 @@ impl Plugin for CustomShapes {
 mod windows {
     use egui::{Align2, RichText, Ui, Window};
     use walkers::extras::Texture;
-    use walkers::providers::MapType;
-    use walkers::Tiles;
-    use walkers::{providers::Attribution, Center, MapMemory};
+    use walkers::providers::{self, Attribution, MapType, Providers};
+    use walkers::{Center, MapMemory, Tiles};
 
     pub fn acknowledge(ui: &Ui, attribution: &Attribution) {
         Window::new("Acknowledge")
@@ -194,12 +185,12 @@ mod windows {
 
     pub fn controls(
         ui: &Ui,
-        satellite: &mut bool,
         texture: &mut Texture,
         rotate: &mut f32,
         x_scale: &mut f32,
         y_scale: &mut f32,
         map_type: &mut MapType,
+        provider_type: &mut Providers,
         tiles: &mut Tiles,
     ) {
         Window::new("Satellite")
@@ -209,17 +200,16 @@ mod windows {
             .anchor(Align2::RIGHT_TOP, [-10., 10.])
             .fixed_size([150., 150.])
             .show(ui.ctx(), |ui| {
-                ui.checkbox(satellite, "satellite view");
                 ui.add(egui::Slider::new(rotate, 0.0..=360.0).text("Rotate"));
                 ui.add(egui::Slider::new(x_scale, 0.1..=3.0).text("Scale width"));
                 ui.add(egui::Slider::new(y_scale, 0.1..=3.0).text("Scale heigth"));
                 texture.scale(*x_scale, *y_scale);
                 texture.rotate(*rotate);
 
+                let old_map_type = map_type.clone();
                 egui::ComboBox::from_label("Map type")
-                    .selected_text(format!("{:?}", map_type.to_string()))
+                    .selected_text(map_type.to_string())
                     .show_ui(ui, |ui| {
-                        let tmp = map_type.clone();
                         ui.selectable_value(
                             map_type,
                             MapType::Standart,
@@ -231,11 +221,32 @@ mod windows {
                             MapType::Satellite.to_string(),
                         );
                         ui.selectable_value(map_type, MapType::Hybrid, MapType::Hybrid.to_string());
-                        if tmp != *map_type {
-                            let provider = walkers::providers::Google::new(*map_type);
-                            *tiles = Tiles::new(provider, ui.ctx().to_owned());
-                        }
                     });
+                let old_provider_type = provider_type.clone();
+                egui::ComboBox::from_label("Provider")
+                    .selected_text(provider_type.to_string())
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(
+                            provider_type,
+                            Providers::OpenStreetMap,
+                            Providers::OpenStreetMap.to_string(),
+                        );
+                        ui.selectable_value(
+                            provider_type,
+                            Providers::Geoportal,
+                            Providers::Geoportal.to_string(),
+                        );
+                        ui.selectable_value(
+                            provider_type,
+                            Providers::Google,
+                            Providers::Google.to_string(),
+                        );
+                    });
+
+                if old_map_type != *map_type || old_provider_type != *provider_type {
+                    let provider = providers::new(*provider_type, *map_type);
+                    *tiles = Tiles::new(provider, ui.ctx().to_owned());
+                }
             });
     }
 

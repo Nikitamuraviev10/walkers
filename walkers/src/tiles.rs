@@ -7,7 +7,10 @@ use egui_extras::RetainedImage;
 use crate::download::download_continuously;
 use crate::io::Runtime;
 use crate::mercator::TileId;
-use crate::providers::{Attribution, TileSource};
+use crate::providers::{Attribution, Provider};
+
+#[cfg(test)]
+use crate::providers::TileSource;
 
 #[derive(Clone)]
 pub struct Tile {
@@ -57,10 +60,7 @@ pub struct Tiles {
 }
 
 impl Tiles {
-    pub fn new<S>(source: S, egui_ctx: Context) -> Self
-    where
-        S: TileSource + Send + 'static,
-    {
+    pub fn new(source: Provider, egui_ctx: Context) -> Self {
         // Minimum value which didn't cause any stalls while testing.
         let channel_size = 20;
 
@@ -129,8 +129,8 @@ mod tests {
     }
 
     impl TestSource {
-        pub fn new(base_url: String) -> Self {
-            Self { base_url }
+        pub fn new(base_url: String) -> Provider {
+            Box::new(Self { base_url })
         }
     }
 
@@ -149,7 +149,7 @@ mod tests {
 
     /// Creates `mockito::Server` and function mapping `TileId` to this
     /// server's URL.
-    fn mockito_server() -> (mockito::ServerGuard, TestSource) {
+    fn mockito_server() -> (mockito::ServerGuard, Provider) {
         let server = mockito::Server::new();
         let url = server.url();
         (server, TestSource::new(url))
@@ -237,7 +237,8 @@ mod tests {
     #[test]
     fn tile_is_empty_forever_if_http_can_not_even_connect() {
         let _ = env_logger::try_init();
-        let mut tiles = Tiles::new(GarbageSource, Context::default());
+        let garbage_source = Box::new(GarbageSource);
+        let mut tiles = Tiles::new(garbage_source, Context::default());
         assert_tile_is_empty_forever(&mut tiles);
     }
 }

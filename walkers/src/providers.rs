@@ -1,8 +1,9 @@
 //! Some common tile map providers.
-
 use crate::mercator::TileId;
+use enum2str::EnumStr;
+pub type Provider = Box<dyn TileSource + Send>;
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(EnumStr, Clone, Copy, PartialEq)]
 pub enum MapType {
     Standart,
     Satellite,
@@ -11,18 +12,17 @@ pub enum MapType {
     Terrain,
 }
 
-impl MapType {
-    pub fn to_string(&self) -> String {
-        let s = match self {
-            MapType::Standart => "Standart",
-            MapType::Satellite => "Satellite",
-            MapType::Hybrid => "Hybrid",
-            MapType::Roads => "Roads",
-            MapType::Terrain => "Terrain",
-        };
+#[derive(EnumStr, Clone, Copy, PartialEq)]
+pub enum Providers {
+    /// <https://www.openstreetmap.org/about>
+    OpenStreetMap,
 
-        s.to_string()
-    }
+    /// Orthophotomap layer from Poland's Geoportal.
+    /// <https://www.geoportal.gov.pl/uslugi/usluga-przegladania-wms>
+    Geoportal,
+
+    /// <https://www.google.com/maps/about>
+    Google,
 }
 
 #[derive(Clone, Copy)]
@@ -36,8 +36,7 @@ pub trait TileSource {
     fn attribution(&self) -> Attribution;
 }
 
-/// <https://www.openstreetmap.org/about>
-pub struct OpenStreetMap;
+struct OpenStreetMap;
 
 impl TileSource for OpenStreetMap {
     fn tile_url(&self, tile_id: TileId) -> String {
@@ -55,9 +54,7 @@ impl TileSource for OpenStreetMap {
     }
 }
 
-/// Orthophotomap layer from Poland's Geoportal.
-/// <https://www.geoportal.gov.pl/uslugi/usluga-przegladania-wms>
-pub struct Geoportal;
+struct Geoportal;
 
 impl TileSource for Geoportal {
     fn tile_url(&self, tile_id: TileId) -> String {
@@ -83,7 +80,7 @@ impl TileSource for Geoportal {
     }
 }
 
-pub struct Google {
+struct Google {
     t: char,
 }
 
@@ -114,5 +111,14 @@ impl TileSource for Google {
             text: "Google Maps",
             url: "https://www.google.com/maps/",
         }
+    }
+}
+
+/// Constructor function for map providers
+pub fn new(provider: Providers, map_type: MapType) -> Provider {
+    match provider {
+        Providers::OpenStreetMap => Box::new(OpenStreetMap),
+        Providers::Geoportal => Box::new(Geoportal),
+        Providers::Google => Box::new(Google::new(map_type)),
     }
 }
