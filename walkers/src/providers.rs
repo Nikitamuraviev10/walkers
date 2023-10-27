@@ -2,6 +2,29 @@
 
 use crate::mercator::TileId;
 
+#[derive(Clone, Copy, PartialEq)]
+pub enum MapType {
+    Standart,
+    Satellite,
+    Hybrid,
+    Roads,
+    Terrain,
+}
+
+impl MapType {
+    pub fn to_string(&self) -> String {
+        let s = match self {
+            MapType::Standart => "Standart",
+            MapType::Satellite => "Satellite",
+            MapType::Hybrid => "Hybrid",
+            MapType::Roads => "Roads",
+            MapType::Terrain => "Terrain",
+        };
+
+        s.to_string()
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct Attribution {
     pub text: &'static str,
@@ -56,6 +79,40 @@ impl TileSource for Geoportal {
         Attribution {
             text: "Główny Urząd Geodezji i Kartografii",
             url: "https://www.geoportal.gov.pl/",
+        }
+    }
+}
+
+pub struct Google {
+    t: char,
+}
+
+impl Google {
+    pub fn new(map_type: MapType) -> Self {
+        let t = match map_type {
+            MapType::Standart => 'm',
+            MapType::Satellite => 's',
+            MapType::Hybrid => 'y',
+            MapType::Roads => 'h',
+            MapType::Terrain => 'p',
+        };
+
+        Self { t }
+    }
+}
+
+impl TileSource for Google {
+    fn tile_url(&self, tile_id: TileId) -> String {
+        format!(
+            "http://mt1.google.com/vt/lyrs={}&x={}&y={}&z={}",
+            self.t, tile_id.x, tile_id.y, tile_id.zoom
+        )
+    }
+
+    fn attribution(&self) -> Attribution {
+        Attribution {
+            text: "Google Maps",
+            url: "https://www.google.com/maps/",
         }
     }
 }

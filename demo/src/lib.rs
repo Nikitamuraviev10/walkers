@@ -1,6 +1,7 @@
 use egui::{Align2, Context, Painter, Shape};
 use walkers::{
     extras::{Image, Images, Place, Places, Style, Texture},
+    providers::MapType,
     Map, MapMemory, Plugin, Projector, Tiles,
 };
 
@@ -13,6 +14,7 @@ pub struct MyApp {
     rotate: f32,
     x_scale: f32,
     y_scale: f32,
+    map_type: MapType,
 }
 
 impl MyApp {
@@ -23,8 +25,12 @@ impl MyApp {
             egui::ColorImage::example(),
         );
 
+        let map_type = MapType::Hybrid;
+        let provider = walkers::providers::Google::new(map_type);
+
         Self {
-            tiles: Tiles::new(walkers::providers::OpenStreetMap, egui_ctx.to_owned()),
+            tiles: Tiles::new(provider, egui_ctx.to_owned()),
+            // tiles: Tiles::new(walkers::providers::OpenStreetMap, egui_ctx.to_owned()),
             geoportal_tiles: Tiles::new(walkers::providers::Geoportal, egui_ctx),
             map_memory: MapMemory::default(),
             satellite: false,
@@ -32,6 +38,7 @@ impl MyApp {
             rotate: 0.0,
             x_scale: 1.0,
             y_scale: 1.0,
+            map_type: map_type,
         }
     }
 }
@@ -97,6 +104,8 @@ impl eframe::App for MyApp {
                         &mut self.rotate,
                         &mut self.x_scale,
                         &mut self.y_scale,
+                        &mut self.map_type,
+                        &mut self.tiles,
                     );
                     acknowledge(ui, &attribution);
                 }
@@ -168,6 +177,8 @@ impl Plugin for CustomShapes {
 mod windows {
     use egui::{Align2, RichText, Ui, Window};
     use walkers::extras::Texture;
+    use walkers::providers::MapType;
+    use walkers::Tiles;
     use walkers::{providers::Attribution, Center, MapMemory};
 
     pub fn acknowledge(ui: &Ui, attribution: &Attribution) {
@@ -188,6 +199,8 @@ mod windows {
         rotate: &mut f32,
         x_scale: &mut f32,
         y_scale: &mut f32,
+        map_type: &mut MapType,
+        tiles: &mut Tiles,
     ) {
         Window::new("Satellite")
             .collapsible(false)
@@ -202,6 +215,27 @@ mod windows {
                 ui.add(egui::Slider::new(y_scale, 0.1..=3.0).text("Scale heigth"));
                 texture.scale(*x_scale, *y_scale);
                 texture.rotate(*rotate);
+
+                egui::ComboBox::from_label("Map type")
+                    .selected_text(format!("{:?}", map_type.to_string()))
+                    .show_ui(ui, |ui| {
+                        let tmp = map_type.clone();
+                        ui.selectable_value(
+                            map_type,
+                            MapType::Standart,
+                            MapType::Standart.to_string(),
+                        );
+                        ui.selectable_value(
+                            map_type,
+                            MapType::Satellite,
+                            MapType::Satellite.to_string(),
+                        );
+                        ui.selectable_value(map_type, MapType::Hybrid, MapType::Hybrid.to_string());
+                        if tmp != *map_type {
+                            let provider = walkers::providers::Google::new(*map_type);
+                            *tiles = Tiles::new(provider, ui.ctx().to_owned());
+                        }
+                    });
             });
     }
 
